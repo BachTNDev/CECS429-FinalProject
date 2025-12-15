@@ -35,12 +35,10 @@ def evaluate_system(
     k_ndcg: int = 10,
     k_mrr: int = 10,
     k_recall: int = 100,
+    progress_every: int = 500,  # NEW
 ) -> Dict[str, float]:
-    """
-    run_func: function(q: str, k: int) -> List[(doc_id, score)]
-    """
     ndcgs, mrrs, recalls = [], [], []
-    for qid, qtext in queries.items():
+    for i, (qid, qtext) in enumerate(queries.items(), start=1):
         rel_docs = qrels.get(qid, set())
         if not rel_docs:
             continue
@@ -51,6 +49,9 @@ def evaluate_system(
         ndcgs.append(ndcg_at_k(ranked_docs, rel_docs, k_ndcg))
         mrrs.append(mrr_at_k(ranked_docs, rel_docs, k_mrr))
         recalls.append(recall_at_k(ranked_docs, rel_docs, k_recall))
+
+        if progress_every and i % progress_every == 0:
+            print(f"  processed {i} queries...")
 
     def mean(xs):
         return sum(xs) / len(xs) if xs else 0.0
