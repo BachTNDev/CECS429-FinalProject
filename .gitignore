@@ -1,3 +1,5 @@
 data/
 search/__pycache__/
 models/
+*.old
+diagnose_hybrid.py

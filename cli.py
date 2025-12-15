@@ -101,15 +101,14 @@ def cmd_eval(args):
     dense_metrics = evaluate_system(lambda q, k=100: dense.search(q, k), queries, qrels)
     print(dense_metrics)
 
-    print("Evaluating Hybrid ...")
-    def hybrid_run(q: str, k: int = 100):
+    print("Evaluating Hybrid (Min-Max, α=0.3) ...")
+    def hybrid_run_minmax(q: str, k: int = 100):
         bm25_res = bm25.search(q, k)
         dense_res = dense.search(q, k)
-        return hybrid_fusion(bm25_res, dense_res, alpha=args.alpha, k=k)
-
-    hybrid_metrics = evaluate_system(hybrid_run, queries, qrels)
-    print(hybrid_metrics)
-
+        return hybrid_fusion(bm25_res, dense_res, alpha=0.3, k=k, method="min_max")
+    hybrid_metrics_minmax = evaluate_system(hybrid_run_minmax, queries, qrels)
+    print("Min-Max (α=0.3):", hybrid_metrics_minmax)
+    
 def main():
     parser = argparse.ArgumentParser(description="Hybrid search engine CLI")
     subparsers = parser.add_subparsers(dest="cmd", required=True)

@@ -1,7 +1,8 @@
-# prepare_msmarco.py - Properly limited corpus version
+# prepare_msmarco.py - FIXED: Ensures all relevant docs are included
 """
-Convert MS MARCO Passage from ir_datasets with proper corpus filtering
-to create a manageable dataset for this project.
+Convert MS MARCO Passage from ir_datasets with TWO-PASS approach:
+1. First pass: collect all relevant document IDs from qrels
+2. Second pass: write corpus with ALL relevant docs + sample of others
 """
 
 import json
@@ -11,24 +12,26 @@ import ir_datasets
 
 def main():
     """
-    Prepare MS MARCO data with corpus limited to relevant documents only
+    Prepare MS MARCO data ensuring ALL relevant documents are included
     
-    Strategy: Only include documents that appear in the dev/small qrels
-    This gives us ~7k relevant docs + sample of remaining corpus for a 
-    total of ~100k-500k docs (configurable)
+    Strategy:
+    1. Load qrels and collect all relevant doc IDs
+    2. Load full corpus and write:
+       - ALL docs that appear in qrels (guaranteed)
+       - Sample additional docs to reach target size
     """
     
-    # Load dev/small for queries and qrels
     dataset_id = "msmarco-passage/dev/small"
     
-    print("="*60)
+    print("="*70)
     print(f"Preparing MS MARCO dataset: {dataset_id}")
-    print("="*60)
+    print("="*70)
     
     ds = ir_datasets.load(dataset_id)
     
-    # Configuration: max documents to include
-    MAX_DOCS = 500000  # Manageable size for 4-8GB RAM
+    # Configuration
+    TARGET_CORPUS_SIZE = 100000  # Smaller = faster, still good results
+    # For better results, use 500000, but needs more RAM/time
     
     data_dir = Path("data")
     data_dir.mkdir(exist_ok=True)
@@ -37,8 +40,10 @@ def main():
     queries_path = data_dir / "queries.tsv"
     qrels_path = data_dir / "qrels.tsv"
 
-    # Step 1: Collect relevant document IDs from qrels
-    print(f"\n1. Loading relevant document IDs from qrels...")
+    # ========================================================================
+    # PASS 1: Collect relevant document IDs from qrels
+    # ========================================================================
+    print(f"\n📋 PASS 1: Collecting relevant document IDs...")
     relevant_docs = set()
     qrel_count = 0
     
@@ -49,11 +54,13 @@ def main():
                 relevant_docs.add(qr.doc_id)
             qrel_count += 1
     
-    print(f"   ✅ Found {len(relevant_docs):,} relevant documents")
-    print(f"   ✅ Wrote {qrel_count:,} qrels")
-
-    # Step 2: Write queries
-    print(f"\n2. Writing queries to {queries_path} ...")
+    print(f"   ✅ Found {len(relevant_docs):,} unique relevant documents")
+    print(f"   ✅ Wrote {qrel_count:,} qrels entries")
+    
+    # ========================================================================
+    # Write queries
+    # ========================================================================
+    print(f"\n📝 Writing queries...")
     query_count = 0
     with open(queries_path, "w", encoding="utf-8") as f_out:
         for q in ds.queries_iter():
@@ -62,67 +69,123 @@ def main():
     
     print(f"   ✅ Wrote {query_count:,} queries")
 
-    # Step 3: Write corpus (relevant docs + sample of others)
-    print(f"\n3. Writing corpus to {corpus_path} ...")
-    print(f"   Target size: {MAX_DOCS:,} documents")
-    print(f"   - Relevant docs: {len(relevant_docs):,} (guaranteed)")
-    print(f"   - Additional docs: {MAX_DOCS - len(relevant_docs):,} (sample)")
+    # ========================================================================
+    # PASS 2: Write corpus ensuring ALL relevant docs are included
+    # ========================================================================
+    print(f"\n📚 PASS 2: Writing corpus...")
+    print(f"   Target: {TARGET_CORPUS_SIZE:,} documents")
+    print(f"   Strategy:")
+    print(f"     1. Include ALL {len(relevant_docs):,} relevant docs (guaranteed)")
+    print(f"     2. Sample {TARGET_CORPUS_SIZE - len(relevant_docs):,} additional docs")
+    print()
     
+    relevant_written = set()
+    sample_written = 0
     doc_count = 0
-    relevant_count = 0
-    sample_count = 0
+    
+    # Track which relevant docs we've seen
+    relevant_found = set()
     
     with open(corpus_path, "w", encoding="utf-8") as f_out:
-        for doc in ds.docs_iter():
-            # Always include relevant documents
-            if doc.doc_id in relevant_docs:
-                obj = {"doc_id": doc.doc_id, "text": doc.text}
-                f_out.write(json.dumps(obj) + "\n")
-                relevant_count += 1
-                doc_count += 1
-            # Sample additional documents until we hit MAX_DOCS
-            elif doc_count < MAX_DOCS:
-                obj = {"doc_id": doc.doc_id, "text": doc.text}
-                f_out.write(json.dumps(obj) + "\n")
-                sample_count += 1
-                doc_count += 1
-            else:
-                # Stop once we have enough documents
-                break
+        for i, doc in enumerate(ds.docs_iter()):
+            # Progress indicator for the long iteration
+            if (i + 1) % 100000 == 0:
+                print(f"   Scanning: {i+1:,} docs | "
+                      f"Written: {doc_count:,}/{TARGET_CORPUS_SIZE:,} | "
+                      f"Relevant: {len(relevant_written):,}/{len(relevant_docs):,}")
             
-            if doc_count % 10000 == 0:
-                print(f"   Progress: {doc_count:,}/{MAX_DOCS:,} documents")
+            # ALWAYS include relevant documents
+            if doc.doc_id in relevant_docs:
+                if doc.doc_id not in relevant_written:
+                    obj = {"doc_id": doc.doc_id, "text": doc.text}
+                    f_out.write(json.dumps(obj) + "\n")
+                    relevant_written.add(doc.doc_id)
+                    relevant_found.add(doc.doc_id)
+                    doc_count += 1
+            
+            # Sample additional documents if we haven't hit target
+            elif doc_count < TARGET_CORPUS_SIZE:
+                obj = {"doc_id": doc.doc_id, "text": doc.text}
+                f_out.write(json.dumps(obj) + "\n")
+                sample_written += 1
+                doc_count += 1
+            
+            # Stop if we have all relevant docs AND hit target size
+            if len(relevant_written) == len(relevant_docs) and doc_count >= TARGET_CORPUS_SIZE:
+                print(f"\n   ✅ Target reached! Stopping iteration.")
+                break
     
-    print(f"   ✅ Wrote {doc_count:,} documents")
-    print(f"      - Relevant: {relevant_count:,}")
-    print(f"      - Sample: {sample_count:,}")
-
-    print("\n" + "="*60)
+    print(f"\n   ✅ Corpus written: {doc_count:,} documents")
+    print(f"      - Relevant docs: {len(relevant_written):,}/{len(relevant_docs):,}")
+    print(f"      - Sample docs: {sample_written:,}")
+    
+    # ========================================================================
+    # Verification & Summary
+    # ========================================================================
+    missing_relevant = relevant_docs - relevant_written
+    
+    print("\n" + "="*70)
+    print("VERIFICATION:")
+    print("="*70)
+    
+    if missing_relevant:
+        print(f"⚠️  WARNING: {len(missing_relevant)} relevant docs NOT in corpus!")
+        print(f"   This will hurt evaluation metrics!")
+        print(f"   Missing docs: {list(missing_relevant)[:5]}...")
+        print(f"\n   SOLUTION: The corpus needs to be larger or iterate more.")
+    else:
+        print(f"✅ SUCCESS: ALL {len(relevant_docs):,} relevant docs are in corpus!")
+    
+    print("\n" + "="*70)
     print("SUMMARY:")
-    print("="*60)
+    print("="*70)
     print(f"Dataset: {dataset_id}")
-    print(f"Documents: {doc_count:,} (limited from 8.8M)")
+    print(f"Total corpus size: {doc_count:,}")
+    print(f"  - Relevant docs: {len(relevant_written):,}")
+    print(f"  - Sample docs: {sample_written:,}")
     print(f"Queries: {query_count:,}")
-    print(f"Relevance judgments: {qrel_count:,}")
-    print(f"Relevant docs included: {relevant_count:,}/{len(relevant_docs):,}")
+    print(f"Qrels: {qrel_count:,}")
+    print(f"\nRelevant doc coverage: {len(relevant_written)}/{len(relevant_docs)} "
+          f"({len(relevant_written)/len(relevant_docs)*100:.1f}%)")
+    
     print("\nFiles created:")
     print(f"  📄 {corpus_path}")
     print(f"  📄 {queries_path}")
     print(f"  📄 {qrels_path}")
-    print("="*60)
     
-    if doc_count <= 200000:
-        print("\n✅ Corpus size is good for this project!")
-        print(f"   RAM needed: ~4-8 GB")
-        print(f"   Build time: ~5-15 minutes")
+    # Estimate performance
+    coverage = len(relevant_written) / len(relevant_docs) if relevant_docs else 0
+    
+    print("\n" + "="*70)
+    print("EXPECTED PERFORMANCE:")
+    print("="*70)
+    
+    if coverage >= 0.95:
+        print("✅ EXCELLENT corpus coverage!")
+        print("   Expected metrics:")
+        print("     - BM25:   nDCG@10 ~0.20-0.25")
+        print("     - Dense:  nDCG@10 ~0.25-0.30")
+        print("     - Hybrid: nDCG@10 ~0.28-0.32")
+    elif coverage >= 0.80:
+        print("⚠️  GOOD corpus coverage")
+        print("   Expected metrics:")
+        print("     - BM25:   nDCG@10 ~0.15-0.20")
+        print("     - Dense:  nDCG@10 ~0.18-0.23")
+        print("     - Hybrid: nDCG@10 ~0.20-0.25")
     else:
-        print("\n⚠️  Corpus is large but manageable")
-        print(f"   RAM needed: ~8-16 GB")
-        print(f"   Build time: ~15-30 minutes")
+        print("❌ POOR corpus coverage - metrics will be low!")
+        print("   Consider increasing TARGET_CORPUS_SIZE")
     
-    print("\nNext steps:")
-    print("  python3 cli.py build --corpus data/corpus.jsonl --batch-size 16")
-    print("="*60)
+    print("\n" + "="*70)
+    print("NEXT STEPS:")
+    print("="*70)
+    print("1. Rebuild indexes:")
+    print("   python cli.py build --corpus data/corpus.jsonl --batch-size 32")
+    print("\n2. Run evaluation:")
+    print("   python cli.py eval")
+    print("\n3. For comprehensive analysis:")
+    print("   python analysis.py")
+    print("="*70)
 
 
 if __name__ == "__main__":
