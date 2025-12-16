@@ -345,7 +345,7 @@ MIT License - feel free to use for research and education!
 
 **Author**: Bach Nguyen  
 **Course**: CECS 429 - Search Engine Technology  
-**Email**: [your-email]@csulb.edu  
+**Email**: bach.nguyen@student.csulb.edu  
 
 ## 🌟 Acknowledgments
 

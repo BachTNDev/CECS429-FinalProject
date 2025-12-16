@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hybrid Search Engine</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .search-box {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+        }
+        
+        .search-input-wrapper {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+        
+        .search-input:focus {
+            border-color: #667eea;
+        }
+        
+        .search-button {
+            padding: 15px 40px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .search-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .search-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .slider {
+            width: 150px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+            font-size: 1.2rem;
+        }
+        
+        .timings {
+            background: rgba(255,255,255,0.95);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .timing-item {
+            text-align: center;
+        }
+        
+        .timing-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        
+        .timing-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+        
+        .disagreements {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+        
+        .disagreements h3 {
+            color: #856404;
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+        
+        .disagreement-item {
+            margin: 8px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 5px;
+        }
+        
+        .disagreement-type {
+            font-weight: 600;
+            color: #667eea;
+        }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+        }
+        
+        .results-column {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+        
+        .results-column h2 {
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #667eea;
+            color: #333;
+        }
+        
+        .result-item {
+            padding: 15px;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .result-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+        }
+        
+        .result-rank {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 28px;
+            height: 28px;
+            line-height: 28px;
+            text-align: center;
+            border-radius: 50%;
+            font-weight: 700;
+            margin-right: 10px;
+            font-size: 0.9rem;
+        }
+        
+        .result-doc-id {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        
+        .result-score {
+            display: inline-block;
+            background: #e7f3ff;
+            color: #0066cc;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        
+        .result-snippet {
+            color: #666;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-top: 8px;
+        }
+        
+        .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 1.1rem;
+        }
+        
+        .error {
+            background: #f8d7da;
+            border: 2px solid #f5c6cb;
+            color: #721c24;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 1024px) {
+            .results-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState } = React;
+        
+        const API_URL = 'http://localhost:8000';
+        
+        function App() {
+            const [query, setQuery] = useState('');
+            const [k, setK] = useState(10);
+            const [alpha, setAlpha] = useState(0.5);
+            const [loading, setLoading] = useState(false);
+            const [results, setResults] = useState(null);
+            const [error, setError] = useState(null);
+            
+            const handleSearch = async (e) => {
+                e.preventDefault();
+                
+                if (!query.trim()) {
+                    setError('Please enter a search query');
+                    return;
+                }
+                
+                setLoading(true);
+                setError(null);
+                
+                try {
+                    const response = await fetch(`${API_URL}/search`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ query, k, alpha })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    setResults(data);
+                } catch (err) {
+                    setError(`Error: ${err.message}. Make sure the backend is running on port 8000.`);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            const ResultColumn = ({ title, results, color }) => (
+                <div className="results-column">
+                    <h2>{title}</h2>
+                    {results.length === 0 ? (
+                        <div className="no-results">No results found</div>
+                    ) : (
+                        results.map((result) => (
+                            <div key={result.doc_id} className="result-item">
+                                <div className="result-doc-id">
+                                    <span className="result-rank">{result.rank}</span>
+                                    {result.doc_id}
+                                    <span className="result-score">{result.score}</span>
+                                </div>
+                                <div className="result-snippet">{result.snippet}</div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            );
+            
+            return (
+                <div className="container">
+                    <div className="header">
+                        <h1>🔍 Hybrid Search Engine</h1>
+                        <p>BM25 + Dense FAISS + Hybrid Fusion</p>
+                    </div>
+                    
+                    <div className="search-box">
+                        <form onSubmit={handleSearch}>
+                            <div className="search-input-wrapper">
+                                <input
+                                    type="text"
+                                    className="search-input"
+                                    placeholder="Enter your search query..."
+                                    value={query}
+                                    onChange={(e) => setQuery(e.target.value)}
+                                />
+                                <button 
+                                    type="submit" 
+                                    className="search-button"
+                                    disabled={loading}
+                                >
+                                    {loading ? 'Searching...' : 'Search'}
+                                </button>
+                            </div>
+                            
+                            <div className="controls">
+                                <div className="control-group">
+                                    <label htmlFor="k-slider">Top K:</label>
+                                    <input
+                                        id="k-slider"
+                                        type="range"
+                                        min="5"
+                                        max="50"
+                                        value={k}
+                                        onChange={(e) => setK(parseInt(e.target.value))}
+                                        className="slider"
+                                    />
+                                    <span>{k}</span>
+                                </div>
+                                
+                                <div className="control-group">
+                                    <label htmlFor="alpha-slider">Alpha (BM25 weight):</label>
+                                    <input
+                                        id="alpha-slider"
+                                        type="range"
+                                        min="0"
+                                        max="1"
+                                        step="0.1"
+                                        value={alpha}
+                                        onChange={(e) => setAlpha(parseFloat(e.target.value))}
+                                        className="slider"
+                                    />
+                                    <span>{alpha.toFixed(1)}</span>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    {error && (
+                        <div className="error">{error}</div>
+                    )}
+                    
+                    {loading && (
+                        <div className="loading">🔄 Searching across all indexes...</div>
+                    )}
+                    
+                    {results && !loading && (
+                        <>
+                            <div className="timings">
+                                <div className="timing-item">
+                                    <div className="timing-label">BM25</div>
+                                    <div className="timing-value">{results.timings.bm25_ms}ms</div>
+                                </div>
+                                <div className="timing-item">
+                                    <div className="timing-label">Dense</div>
+                                    <div className="timing-value">{results.timings.dense_ms}ms</div>
+                                </div>
+                                <div className="timing-item">
+                                    <div className="timing-label">Hybrid</div>
+                                    <div className="timing-value">{results.timings.hybrid_ms}ms</div>
+                                </div>
+                                <div className="timing-item">
+                                    <div className="timing-label">Total</div>
+                                    <div className="timing-value">{results.timings.total_ms}ms</div>
+                                </div>
+                            </div>
+                            
+                            {results.disagreements.length > 0 && (
+                                <div className="disagreements">
+                                    <h3>⚠️ Method Disagreements (Confusion View)</h3>
+                                    {results.disagreements.map((dis, idx) => (
+                                        <div key={idx} className="disagreement-item">
+                                            <span className="disagreement-type">{dis.type}:</span> {dis.description}
+                                            <br />
+                                            <small>Documents: {dis.docs}</small>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            
+                            <div className="results-grid">
+                                <ResultColumn 
+                                    title="BM25 (Lexical)" 
+                                    results={results.bm25_results}
+                                />
+                                <ResultColumn 
+                                    title="Dense FAISS (Semantic)" 
+                                    results={results.dense_results}
+                                />
+                                <ResultColumn 
+                                    title={`Hybrid (α=${alpha})`}
+                                    results={results.hybrid_results}
+                                />
+                            </div>
+                        </>
+                    )}
+                </div>
+            );
+        }
+        
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>

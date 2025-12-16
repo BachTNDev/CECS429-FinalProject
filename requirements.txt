@@ -1,0 +1,17 @@
+# Core ML/IR dependencies
+faiss-cpu==1.7.4
+sentence-transformers==2.2.2
+numpy>=1.21.0
+torch>=2.0.0
+
+# Data preparation
+ir-datasets==0.5.5
+
+# Web API (for UI)
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# Analysis & Visualization (optional but recommended)
+matplotlib>=3.5.0
+pandas>=1.5.0
